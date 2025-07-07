@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
+import { classifyPressure, classifyGlucose } from '../utils/validators';
+import AlertBanner from '../components/AlertBanner';
+import ExportData from '../components/ExportData';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -55,6 +58,15 @@ const Dashboard = () => {
 
     const glucoseStats = calculateStats(filteredGlucoseData, 'glucose');
 
+    const pressureClassification = classifyPressure(pressureStats.systolic.avg, pressureStats.diastolic.avg);
+    const glucoseClassification = classifyGlucose(glucoseStats.avg);
+    
+    // Contar leituras com medicação
+    const medicationCount = filteredPressureData.filter(p => p.medicationTaken).length;
+    const medicationPercentage = filteredPressureData.length > 0 
+        ? Math.round((medicationCount / filteredPressureData.length) * 100) 
+        : 0;
+
     const pressureChartData = {
         labels: filteredPressureData.map(d => new Date(d.timestamp).toLocaleDateString()),
         datasets: [
@@ -87,29 +99,138 @@ const Dashboard = () => {
 
     return (
         <div className="container mt-4">
-            <h2>Dashboard</h2>
+            <div className="d-flex justify-content-between align-items-center mb-4">
+                <h2>Dashboard de Saúde</h2>
+                <ExportData pressureData={pressureData} glucoseData={glucoseData} />
+            </div>
+            
+            {/* Banner de Alertas */}
+            <AlertBanner pressureData={pressureData} glucoseData={glucoseData} />
+            
             <div className="btn-group mb-3" role="group">
                 <button type="button" className={`btn btn-secondary ${period === 7 ? 'active' : ''}`} onClick={() => setPeriod(7)}>Últimos 7 dias</button>
                 <button type="button" className={`btn btn-secondary ${period === 30 ? 'active' : ''}`} onClick={() => setPeriod(30)}>Últimos 30 dias</button>
                 <button type="button" className={`btn btn-secondary ${period === 'all' ? 'active' : ''}`} onClick={() => setPeriod('all')}>Todos</button>
             </div>
+            {/* Cards de Resumo */}
+            <div className="row mb-4">
+                <div className="col-md-3">
+                    <div className="card text-center">
+                        <div className="card-body">
+                            <h5 className="card-title">Pressão Média</h5>
+                            <h3>{pressureStats.systolic.avg}/{pressureStats.diastolic.avg}</h3>
+                            <span className={`badge bg-${pressureClassification.color}`}>
+                                {pressureClassification.icon} {pressureClassification.category}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div className="col-md-3">
+                    <div className="card text-center">
+                        <div className="card-body">
+                            <h5 className="card-title">Glicose Média</h5>
+                            <h3>{glucoseStats.avg} mg/dL</h3>
+                            <span className={`badge bg-${glucoseClassification.color}`}>
+                                {glucoseClassification.icon} {glucoseClassification.category}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div className="col-md-3">
+                    <div className="card text-center">
+                        <div className="card-body">
+                            <h5 className="card-title">Total de Leituras</h5>
+                            <h3>{filteredPressureData.length + filteredGlucoseData.length}</h3>
+                            <small className="text-muted">No período selecionado</small>
+                        </div>
+                    </div>
+                </div>
+                <div className="col-md-3">
+                    <div className="card text-center">
+                        <div className="card-body">
+                            <h5 className="card-title">Com Medicação</h5>
+                            <h3>{medicationPercentage}%</h3>
+                            <small className="text-muted">{medicationCount} de {filteredPressureData.length}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div className="row">
                 <div className="col-md-6">
-                    <h3>Pressão Arterial</h3>
-                    <Line data={pressureChartData} />
-                    <div className="mt-3">
-                        <h5>Estatísticas (Sistólica)</h5>
-                        <p>Média: {pressureStats.systolic.avg} | Máxima: {pressureStats.systolic.max} | Mínima: {pressureStats.systolic.min}</p>
-                        <h5>Estatísticas (Diastólica)</h5>
-                        <p>Média: {pressureStats.diastolic.avg} | Máxima: {pressureStats.diastolic.max} | Mínima: {pressureStats.diastolic.min}</p>
+                    <div className="card">
+                        <div className="card-header">
+                            <h4>Pressão Arterial</h4>
+                        </div>
+                        <div className="card-body">
+                            <Line data={pressureChartData} options={{
+                                responsive: true,
+                                plugins: {
+                                    legend: { position: 'top' },
+                                    title: { display: false }
+                                }
+                            }} />
+                            <div className="mt-3">
+                                <table className="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th></th>
+                                            <th>Média</th>
+                                            <th>Máxima</th>
+                                            <th>Mínima</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><strong>Sistólica</strong></td>
+                                            <td>{pressureStats.systolic.avg}</td>
+                                            <td>{pressureStats.systolic.max}</td>
+                                            <td>{pressureStats.systolic.min}</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Diastólica</strong></td>
+                                            <td>{pressureStats.diastolic.avg}</td>
+                                            <td>{pressureStats.diastolic.max}</td>
+                                            <td>{pressureStats.diastolic.min}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div className="col-md-6">
-                    <h3>Glicose</h3>
-                    <Line data={glucoseChartData} />
-                    <div className="mt-3">
-                        <h5>Estatísticas</h5>
-                        <p>Média: {glucoseStats.avg} | Máxima: {glucoseStats.max} | Mínima: {glucoseStats.min}</p>
+                    <div className="card">
+                        <div className="card-header">
+                            <h4>Glicose</h4>
+                        </div>
+                        <div className="card-body">
+                            <Line data={glucoseChartData} options={{
+                                responsive: true,
+                                plugins: {
+                                    legend: { position: 'top' },
+                                    title: { display: false }
+                                }
+                            }} />
+                            <div className="mt-3">
+                                <table className="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Média</th>
+                                            <th>Máxima</th>
+                                            <th>Mínima</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td>{glucoseStats.avg}</td>
+                                            <td>{glucoseStats.max}</td>
+                                            <td>{glucoseStats.min}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
